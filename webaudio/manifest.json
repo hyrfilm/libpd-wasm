@@ -1,5 +1,11 @@
 [
   {
+    "file": "patches/libpd-wasm-demo-4-verb.pd",
+    "title": "Reverb showcase",
+    "category": "Showcase",
+    "description": "Random sequences through a Moog-style filter into a stereo reverb. Toggle play to start; tweak cutoff, resonance, and the per-layer densities."
+  },
+  {
     "file": "patches/sine.pd",
     "title": "Sine",
     "category": "Fundamentals",

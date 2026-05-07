@@ -64,13 +64,31 @@ function parseAndRewrite(patch) {
     let kind = null, recv = null, min = 0, max = 1, init = 0, step = 0.001;
     let mutated = false;
 
+    // iemgui init value lives in different slots depending on which
+    // format Pd saved the patch in:
+    //   - vanilla modern: position 5 (hsl/vsl/nbx) or 1 (tgl) is the
+    //     loadinit *flag*; the saved value is the second-to-last token
+    //     before steady/log_height/default_val.
+    //   - older / hand-authored: that same position holds the init
+    //     value directly; the trailing slot is 0.
+    // Prefer the trailing value, but fall back to the legacy slot when
+    // it's zero and the legacy slot has something usable. Trailing
+    // fields are plain numbers, so a[len - 2] is safe even when labels
+    // contain escaped spaces that shift earlier indices under /\s+/.
+    const savedVal = (legacyIdx) => {
+      const tail = parseFloat(a[a.length - 2]);
+      if (tail) return tail;
+      const legacy = parseFloat(a[legacyIdx]);
+      return Number.isFinite(legacy) ? legacy : 0;
+    };
+
     if (type === "r" || type === "receive") {
       if (isSym(a[0])) { kind = "slider"; recv = a[0]; }
     } else if (type === "hsl" || type === "vsl") {
-      // hsl/vsl: [w, h, min, max, log, init, SEND, RCV, lbl, ...]
+      // hsl/vsl: [w, h, min, max, log, init, SEND, RCV, lbl, ..., val, steady]
       min  = parseFloat(a[2]);
       max  = parseFloat(a[3]);
-      init = parseFloat(a[5]);
+      init = savedVal(5);
       step = (max - min) / 200 || 0.001;
       kind = "slider";
       if (isSym(a[7]))      recv = a[7];
@@ -81,7 +99,7 @@ function parseAndRewrite(patch) {
     } else if (type === "nbx") {
       min  = parseFloat(a[2]);
       max  = parseFloat(a[3]);
-      init = parseFloat(a[5]);
+      init = savedVal(5);
       kind = "number";
       if (isSym(a[7]))      recv = a[7];
       else if (isSym(a[6])) recv = a[6];
@@ -92,7 +110,7 @@ function parseAndRewrite(patch) {
       else if (isSym(a[4])) recv = a[4];
       else { recv = synth(); a[5] = recv; mutated = true; }
     } else if (type === "tgl") {
-      init = parseFloat(a[1]) ? 1 : 0;
+      init = savedVal(1) ? 1 : 0;
       kind = "toggle";
       if (isSym(a[3]))      recv = a[3];
       else if (isSym(a[2])) recv = a[2];
