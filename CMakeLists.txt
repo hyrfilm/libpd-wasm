@@ -155,7 +155,6 @@ set(PD_SOURCES
     pure-data/src/m_sched.c
     pure-data/src/s_audio.c
     pure-data/src/s_audio_dummy.c
-    pure-data/src/s_inter.c
     pure-data/src/s_inter_gui.c
     pure-data/src/s_loader.c
     pure-data/src/s_main.c
@@ -184,6 +183,12 @@ set(PD_SOURCES
     pure-data/src/x_vexp_fun.c
     pure-data/src/x_vexp_if.c
 )
+
+if(EMSCRIPTEN)
+  list(APPEND libpd_sources webaudio/pd_wasm_stubs.c)
+else()
+  list(APPEND libpd_sources pure-data/src/s_inter.c)
+endif()
 
 set(PD_EXTRA_SOURCES
     pure-data/extra/bob~/bob~.c

@@ -53,3 +53,46 @@ java-build/*
 javadoc
 libs/libpd-sources*
 *.coverage
+.em_cache
+.direnv/
+
+# WASM build outputs
+build-wasm/
+webaudio/libpd-worklet.js
+
+# Defaults
+.DS_Store
+Thumbs.db
+.env
+.env.local
+*.log
+*.swo
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.tox/
+
+# JavaScript
+node_modules/
+.next/
+.nuxt/
+*.min.js
+*.min.css
+.parcel-cache/
+coverage/
+.turbo/
+*.tsbuildinfo
