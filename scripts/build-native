@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+cmake -B build-native \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DUSEAPI_DUMMY=1 \
+  "$@"
+
+cmake --build build-native --parallel

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+port="${1:-8000}"
+if [[ $# -gt 0 ]]; then
+  shift
+fi
+
+echo "http://localhost:${port}/webaudio/"
+python3 -m http.server "$port" "$@"

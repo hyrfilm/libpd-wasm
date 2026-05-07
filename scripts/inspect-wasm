@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+wasm="${1:-build-wasm/libpd.wasm}"
+
+if [[ ! -f "$wasm" ]]; then
+  echo "inspect-wasm: no WASM file found at $wasm" >&2
+  echo "Pass an explicit .wasm path, or build without SINGLE_FILE=1." >&2
+  exit 1
+fi
+
+echo "--- wasm-validate ---"
+wasm-validate "$wasm"
+echo "valid"
+echo
+echo "--- wasm-objdump (exports) ---"
+wasm-objdump -x "$wasm" | grep -A 9999 'Export\[' | head -60
