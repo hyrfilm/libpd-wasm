@@ -10,6 +10,8 @@ on:
       - 'scripts/build-wasm.sh'
       - 'scripts/build-wasm'
       - 'CMakeLists.txt'
+      - 'flake.nix'
+      - 'flake.lock'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -32,27 +34,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache emsdk
-        uses: actions/cache@v4
-        with:
-          path: ~/.emsdk-cache
-          key: emsdk-${{ runner.os }}-3.1.64
-
-      - name: Set up Emscripten
-        uses: mymindstorm/setup-emsdk@v14
-        with:
-          version: 3.1.64
-          actions-cache-folder: ~/.emsdk-cache
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install esbuild
-        run: npm install -g esbuild
+      - uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Build libpd WASM + worklet bundle
-        run: ./scripts/build-wasm.sh
+        run: nix develop .# -c build-wasm
 
       - name: Stage Pages site
         run: |
