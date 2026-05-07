@@ -1,7 +1,7 @@
 // AudioWorkletProcessor that hosts libpd in the audio thread.
 //
-// Bundled with esbuild into build-wasm/libpd-worklet.js. The libpd module
-// itself is built with -s SINGLE_FILE=1 so the wasm is embedded as base64.
+// Bundled with esbuild into webaudio/libpd-worklet.js. The imported libpd
+// module is built with -s SINGLE_FILE=1 so the wasm is embedded as base64.
 
 // Emscripten's runtime sniffs `window` / `WorkerGlobalScope` / `process`
 // to decide which environment code path to use. AudioWorkletGlobalScope
@@ -17,7 +17,7 @@ if (typeof WorkerGlobalScope === "undefined") {
   globalThis.WorkerGlobalScope = function () {};
 }
 
-import LibPdFactory from "../build-wasm/libpd.js";
+import LibPdFactory from "../build-wasm/libpd-single.js";
 
 const PD_BLOCK = 64;
 const QUANTUM  = 128;

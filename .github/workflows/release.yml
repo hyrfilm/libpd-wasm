@@ -1,0 +1,77 @@
+name: Release browser bundle
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v0.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache emsdk
+        uses: actions/cache@v4
+        with:
+          path: ~/.emsdk-cache
+          key: emsdk-${{ runner.os }}-3.1.64
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: ~/.emsdk-cache
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install esbuild
+        run: npm install -g esbuild
+
+      - name: Build browser bundle
+        run: ./scripts/build-wasm.sh
+
+      - name: Stage release artifact
+        run: |
+          mkdir -p dist/libpd-wasm-browser dist/libpd-wasm-worklet
+          cp build-wasm/libpd.js dist/libpd-wasm-browser/
+          cp build-wasm/libpd.wasm dist/libpd-wasm-browser/
+          cp LICENSE.txt dist/libpd-wasm-browser/
+          cp README.md dist/libpd-wasm-browser/
+          cp webaudio/libpd-worklet.js dist/libpd-wasm-worklet/
+          cp LICENSE.txt dist/libpd-wasm-worklet/
+          cp README.md dist/libpd-wasm-worklet/
+          (cd dist && zip -r libpd-wasm-browser.zip libpd-wasm-browser)
+          (cd dist && zip -r libpd-wasm-worklet.zip libpd-wasm-worklet)
+
+      - name: Resolve release tag
+        id: release_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/libpd-wasm-browser.zip dist/libpd-wasm-worklet.zip --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/libpd-wasm-browser.zip dist/libpd-wasm-worklet.zip --target "$GITHUB_SHA" --generate-notes
+          fi

@@ -8,6 +8,7 @@ on:
       - 'libpd_wrapper/**'
       - 'pure-data/**'
       - 'scripts/build-wasm.sh'
+      - 'scripts/build-wasm'
       - 'CMakeLists.txt'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
@@ -28,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Cache emsdk
         uses: actions/cache@v4
