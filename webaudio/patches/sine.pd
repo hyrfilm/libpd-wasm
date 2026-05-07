@@ -1,0 +1,11 @@
+#N canvas 0 0 500 280 10;
+#X obj 30 30 hsl 200 15 50 2000 0 220 empty freq freq -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 70 hsl 200 15 0 1 0 0.2 empty amp amp -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 130 osc~ 220;
+#X obj 30 170 *~;
+#X obj 30 210 dac~;
+#X connect 0 0 2 0;
+#X connect 1 0 3 1;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 3 0 4 1;

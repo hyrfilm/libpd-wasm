@@ -1,0 +1,71 @@
+name: Deploy webaudio demo to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'webaudio/**'
+      - 'libpd_wrapper/**'
+      - 'pure-data/**'
+      - 'scripts/build-wasm.sh'
+      - 'CMakeLists.txt'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one in-flight Pages deploy. Cancelling lets a fresher commit
+# overtake an in-progress build.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache emsdk
+        uses: actions/cache@v4
+        with:
+          path: ~/.emsdk-cache
+          key: emsdk-${{ runner.os }}-3.1.64
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.64
+          actions-cache-folder: ~/.emsdk-cache
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install esbuild
+        run: npm install -g esbuild
+
+      - name: Build libpd WASM + worklet bundle
+        run: ./scripts/build-wasm.sh
+
+      - name: Stage Pages site
+        run: |
+          mkdir -p _site
+          cp -R webaudio/. _site/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

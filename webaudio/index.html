@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>libpd in the browser</title>
+  <style>
+    body { font: 14px/1.4 system-ui, sans-serif; max-width: 44rem; margin: 1.5rem auto; padding: 0 1rem; color: #222; }
+    h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+    .sub { color: #777; margin: 0 0 1.25rem; }
+    section { margin: 1.25rem 0; }
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .5rem 0; }
+    button, select { padding: .4rem .8rem; font: inherit; }
+    button[disabled] { opacity: .5; }
+    .vol { display: grid; grid-template-columns: 6rem 1fr 3rem; gap: .5rem; align-items: center; padding: .5rem .75rem; background: #f7f7f7; border: 1px solid #e2e2e2; border-radius: 6px; }
+    .ctrl { display: grid; grid-template-columns: 10rem 1fr 4rem; gap: .5rem; align-items: center; padding: .25rem 0; }
+    .ctrl label { font-family: ui-monospace, monospace; font-size: 13px; color: #444; }
+    .ctrl .val { font-family: ui-monospace, monospace; text-align: right; color: #555; }
+    input[type=range] { width: 100%; }
+    textarea { width: 100%; min-height: 14rem; font: 12px ui-monospace, monospace; padding: .5rem; border: 1px solid #d0d0d0; border-radius: 4px; box-sizing: border-box; resize: vertical; }
+    textarea.dropping { border-color: #4a90e2; background: #eef5fc; }
+    .desc { color: #555; margin: .25rem 0 .75rem; min-height: 1.4em; }
+    #log { color: #666; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11.5px; max-height: 14rem; overflow: auto; padding: .5rem; background: #fafafa; border: 1px solid #eee; border-radius: 4px; }
+    h3 { margin: 1.25rem 0 .25rem; font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; color: #666; }
+  </style>
+</head>
+<body>
+  <h1>libpd in the browser</h1>
+  <p class="sub">Pure Data patches running in WebAssembly inside an AudioWorklet.</p>
+
+  <section>
+    <div class="row">
+      <button id="start">Start audio</button>
+      <button id="stop" disabled>Stop</button>
+      <select id="patchPicker"></select>
+      <button id="reload" disabled>Reload patch</button>
+    </div>
+    <div class="vol">
+      <label for="volume">Master volume</label>
+      <input id="volume" type="range" min="0" max="1" step="0.001" value="0.1" />
+      <span id="volumeVal" class="val">0.10</span>
+    </div>
+    <p id="patchDesc" class="desc"></p>
+  </section>
+
+  <section>
+    <h3>Controls</h3>
+    <div id="controls"><em>Pick a patch and press <b>Start audio</b>.</em></div>
+  </section>
+
+  <section>
+    <h3>Patch source <span style="font-weight: normal; color:#888;">(drop a .pd here, or edit and click Apply)</span></h3>
+    <textarea id="patch" spellcheck="false" placeholder="(empty)"></textarea>
+    <div class="row">
+      <button id="apply">Apply edits</button>
+    </div>
+  </section>
+
+  <section>
+    <h3>Log</h3>
+    <div id="log"></div>
+  </section>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

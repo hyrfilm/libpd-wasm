@@ -1,0 +1,17 @@
+#N canvas 0 0 500 320 10;
+#X obj 30 30 hsl 200 15 30 600 0 110 empty pitch pitch -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 70 hsl 200 15 100 8000 0 1500 empty cutoff cutoff -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 110 hsl 200 15 0 1 0 0.15 empty amp amp -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 160 phasor~;
+#X obj 30 190 -~ 0.5;
+#X obj 30 220 lop~;
+#X obj 30 250 *~;
+#X obj 30 280 dac~;
+#X connect 0 0 3 0;
+#X connect 3 0 4 0;
+#X connect 4 0 5 0;
+#X connect 1 0 5 1;
+#X connect 5 0 6 0;
+#X connect 2 0 6 1;
+#X connect 6 0 7 0;
+#X connect 6 0 7 1;

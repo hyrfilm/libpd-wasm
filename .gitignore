@@ -57,8 +57,11 @@ libs/libpd-sources*
 .direnv/
 
 # WASM build outputs
+build-*/
 build-wasm/
 webaudio/libpd-worklet.js
+a.out.js
+a.out.wasm
 
 # Defaults
 .DS_Store

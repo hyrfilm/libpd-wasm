@@ -1,0 +1,80 @@
+[
+  {
+    "file": "patches/sine.pd",
+    "title": "Sine",
+    "category": "Fundamentals",
+    "description": "A pure sine wave. Adjust frequency and amplitude."
+  },
+  {
+    "file": "patches/fm.pd",
+    "title": "FM synthesis",
+    "category": "Fundamentals",
+    "description": "Two-operator FM. Modulator frequency = carrier * ratio. Push depth up for harshness."
+  },
+  {
+    "file": "patches/am.pd",
+    "title": "AM synthesis",
+    "category": "Fundamentals",
+    "description": "Amplitude modulation: a slow modulator at audio rate becomes ring-mod-like."
+  },
+  {
+    "file": "patches/subtractive.pd",
+    "title": "Subtractive (saw + filter)",
+    "category": "Fundamentals",
+    "description": "A bright phasor saw shaped by a one-pole lowpass."
+  },
+  {
+    "file": "patches/additive.pd",
+    "title": "Additive (4 partials)",
+    "category": "Fundamentals",
+    "description": "Sum of fundamental + 2x + 3x + 4x partials, each with its own gain."
+  },
+  {
+    "file": "patches/delay.pd",
+    "title": "Feedback delay",
+    "category": "Effects",
+    "description": "Sine into a delwrite~/delread~ pair with adjustable time and feedback."
+  },
+  {
+    "file": "patches/reverb.pd",
+    "title": "Multi-tap reverb",
+    "category": "Effects",
+    "description": "Four delay taps summed and fed back. Decay controls tail length."
+  },
+  {
+    "file": "patches/metro-pulses.pd",
+    "title": "Metro pulses",
+    "category": "Sequencers",
+    "description": "Toggle play to start. A metro fires short pulses at a sine."
+  },
+  {
+    "file": "patches/random-melody.pd",
+    "title": "Random melody",
+    "category": "Sequencers",
+    "description": "Each metro tick picks a random pitch within a MIDI range."
+  },
+  {
+    "file": "patches/arpeggio.pd",
+    "title": "Arpeggio",
+    "category": "Sequencers",
+    "description": "Cycles a fixed 8-step arpeggio. Shift root in semitones."
+  },
+  {
+    "file": "patches/probability-rhythm.pd",
+    "title": "Probability rhythm",
+    "category": "Sequencers",
+    "description": "Each metro tick has a configurable chance of triggering."
+  },
+  {
+    "file": "patches/drum-machine.pd",
+    "title": "Drum machine",
+    "category": "Sequencers",
+    "description": "Filtered noise bursts. Tune hit_freq + resonance for kick, snare, hat-like sounds."
+  },
+  {
+    "file": "patches/drone.pd",
+    "title": "Drone",
+    "category": "Ambient",
+    "description": "Three slightly detuned sines. Spread controls beating speed."
+  }
+]
