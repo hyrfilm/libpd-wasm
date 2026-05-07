@@ -123,6 +123,12 @@ class LibPdProcessor extends AudioWorkletProcessor {
           }
         }
 
+        // Stock Pd abstractions (output~, hilbert~, rev1~/2~/3~, ...) are
+        // embedded into the wasm FS at /extra by build-wasm.sh. Re-add it
+        // after each clear so user patches can reference them. Lowest
+        // priority — matches Pd's stdpath / 'extra' folder convention.
+        lib.ccall("libpd_add_to_search_path", null, ["string"], ["/extra"]);
+
         const openFull = PATCH_DIR + "/" + msg.openPath;
         const slash = openFull.lastIndexOf("/");
         const openDir = openFull.slice(0, slash);
