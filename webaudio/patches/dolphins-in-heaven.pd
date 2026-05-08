@@ -1,11 +1,11 @@
 #N canvas 253 65 1325 820 12;
 #X obj 64 469 phasor~;
-#X obj 267 90 tgl 19 0 empty empty start\ sequencer 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X obj 267 90 tgl 19 0 empty play start\ sequencer 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
 #X obj 368 744 bob~ 500 0.5;
 #X obj 770 269 line~;
 #X obj 770 226 pack f 50;
-#X obj 761 132 hsl 162 19 60 8000 0 1 empty empty frequency\ (hz) -2 -8 0 10 #dfdfdf #000000 #000000 7989 1;
-#X obj 985 120 hsl 162 19 0 6 0 0 empty empty resonance\ (>4\ self-oscillation) -2 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X obj 761 132 hsl 162 19 60 8000 0 1 empty frequency frequency\ (hz) -2 -8 0 10 #dfdfdf #000000 #000000 7989 1;
+#X obj 985 120 hsl 162 19 0 6 0 0 empty resonance resonance\ (>4\ self-oscillation) -2 -10 0 12 #fcfcfc #000000 #000000 0 1;
 #X obj 288 458 phasor~;
 #X msg 995 51 0.7;
 #X obj 292 532 *~ 0.25;
@@ -16,7 +16,7 @@
 #X obj 5 347 random 16;
 #X obj 3 394 expr~ ($v1 * 200)+200.;
 #X obj 166 121 metro 200;
-#X obj 169 195 nbx 5 17 0 1 0 0 empty empty freq1\ -\ prob 0 -10 0 12 #fcfcfc #000000 #000000 0 256;
+#X obj 169 195 nbx 5 17 0 1 0 0 empty freq1-prob freq1\ prob 0 -10 0 12 #fcfcfc #000000 #000000 0 256;
 #X obj 135 32 loadbang;
 #X obj 992 6 loadbang;
 #X obj 778 11 loadbang;
@@ -67,7 +67,7 @@
 #X connect 8 0 3 0;
 #X connect 8 1 9 0;
 #X restore 371 197 pd toss;
-#X obj 543 98 nbx 5 17 0 1 0 0 empty empty freq1\ -\ prob 0 -10 0 12 #fcfcfc #000000 #000000 0 256;
+#X obj 543 98 nbx 5 17 0 1 0 0 empty freq2-prob freq2\ prob 0 -10 0 12 #fcfcfc #000000 #000000 0 256;
 #X obj 468 10 loadbang;
 #X obj 530 328 f;
 #X obj 343 292 expr ($f1 * 100)+100;
@@ -127,11 +127,11 @@
 #X obj 1052 737 expr~ ($v1+1.0)*0.5;
 #X obj 726 721 *~;
 #X msg 608 768 level \$1;
-#X floatatom 608 741 7 0 1 0 track3\ level - - 0;
+#X obj 608 741 hsl 100 15 0 1 0 0 empty track3-level track3\ level -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
 #X msg 53 767 level \$1;
-#X floatatom 53 740 7 0 1 0 track1\ level - - 0;
+#X obj 53 740 hsl 100 15 0 1 0 0 empty track1-level track1\ level -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
 #X msg 47 694 level \$1;
-#X floatatom 47 667 7 0 1 0 track2\ level - - 0;
+#X obj 47 667 hsl 100 15 0 1 0 0 empty track2-level track2\ level -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
 #X msg 140 74 0.5;
 #X msg 473 52 0.25;
 #X obj 140 748 rev3~ 100 99 3000 20;

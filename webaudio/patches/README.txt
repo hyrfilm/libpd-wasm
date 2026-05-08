@@ -49,8 +49,16 @@ Adding a patch
         "file": "patches/your-patch.pd",
         "title": "Short title",
         "category": "Fundamentals" | "Effects" | "Sequencers" | ...,
-        "description": "One-sentence pitch of what to listen for."
+        "description": "One-sentence pitch of what to listen for.",
+        "defaults": { "cutoff": 2000, "resonance": 0.7 }
       }
+
+   The "defaults" block is optional. Each key is matched against the
+   control's RCV symbol first, then its label as a fallback. Listed
+   values are pushed into the patch on load, so they override whatever
+   the iemgui has saved AND whatever loadbang chains broadcast.
+   Recommended: give every control a stable RCV symbol and key the
+   defaults on that.
 
 3. Reload the demo (the manifest is fetched at page load).
 

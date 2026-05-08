@@ -38,6 +38,10 @@ let readyResolve, readyReject, readyPromise;
 // ---------------------------------------------------------------------------
 function parseAndRewrite(patch) {
   const isSym = (s) => s && s !== "empty" && s !== "-";
+  // Pd escapes spaces, commas, semicolons in label/symbol fields with a
+  // backslash. Strip the escaping for display.
+  const unesc = (s) => isSym(s) ? s.replace(/\\(.)/g, "$1") : null;
+
   const byRecv = new Map();
   const add = (ctrl, fromGui) => {
     const prev = byRecv.get(ctrl.receiver);
@@ -56,12 +60,24 @@ function parseAndRewrite(patch) {
   for (let i = 0; i < parts.length; i += 2) {
     const body = parts[i];
     const trimmed = body.trim();
-    if (!trimmed.startsWith("#X obj")) continue;
-    const t = trimmed.split(/\s+/);
-    const type = t[4];
-    const a = t.slice(5);
 
-    let kind = null, recv = null, min = 0, max = 1, init = 0, step = 0.001;
+    // Two object families:
+    //   #X obj X Y <type> ...args    — gui externals (hsl, nbx, bng, tgl)
+    //   #X <atomtype> X Y ...args    — atom widgets  (floatatom, ...)
+    // Split on whitespace not preceded by `\` so escaped spaces inside
+    // labels (e.g. `track3\ level`) survive as one token.
+    const t = trimmed.split(/(?<!\\)\s+/);
+    let prefixLen, type, a;
+    if (trimmed.startsWith("#X obj")) {
+      prefixLen = 5; type = t[4]; a = t.slice(5);
+    } else if (trimmed.startsWith("#X floatatom")) {
+      prefixLen = 2; type = t[1]; a = t.slice(2);
+    } else {
+      continue;
+    }
+
+    let kind = null, recv = null, lbl = null;
+    let min = 0, max = 1, init = 0, step = 0.001;
     let mutated = false;
 
     // iemgui init value lives in different slots depending on which
@@ -72,9 +88,7 @@ function parseAndRewrite(patch) {
     //   - older / hand-authored: that same position holds the init
     //     value directly; the trailing slot is 0.
     // Prefer the trailing value, but fall back to the legacy slot when
-    // it's zero and the legacy slot has something usable. Trailing
-    // fields are plain numbers, so a[len - 2] is safe even when labels
-    // contain escaped spaces that shift earlier indices under /\s+/.
+    // it's zero and the legacy slot has something usable.
     const savedVal = (legacyIdx) => {
       const tail = parseFloat(a[a.length - 2]);
       if (tail) return tail;
@@ -85,47 +99,68 @@ function parseAndRewrite(patch) {
     if (type === "r" || type === "receive") {
       if (isSym(a[0])) { kind = "slider"; recv = a[0]; }
     } else if (type === "hsl" || type === "vsl") {
-      // hsl/vsl: [w, h, min, max, log, init, SEND, RCV, lbl, ..., val, steady]
+      // hsl/vsl: [w, h, min, max, log, init, SEND, RCV, LBL, ..., val, steady]
       min  = parseFloat(a[2]);
       max  = parseFloat(a[3]);
       init = savedVal(5);
       step = (max - min) / 200 || 0.001;
       kind = "slider";
+      lbl = unesc(a[8]);
       if (isSym(a[7]))      recv = a[7];
       else if (isSym(a[6])) recv = a[6];
       else if (isFinite(min) && isFinite(max)) {
         recv = synth(); a[7] = recv; mutated = true;
       }
     } else if (type === "nbx") {
+      // nbx: [w, h, min, max, log, init, SEND, RCV, LBL, ...]
       min  = parseFloat(a[2]);
       max  = parseFloat(a[3]);
       init = savedVal(5);
       kind = "number";
+      lbl = unesc(a[8]);
       if (isSym(a[7]))      recv = a[7];
       else if (isSym(a[6])) recv = a[6];
       else { recv = synth(); a[7] = recv; mutated = true; }
     } else if (type === "bng") {
+      // bng: [size, hold, interrupt, init, SEND, RCV, LBL, ...]
       kind = "bang";
+      lbl = unesc(a[6]);
       if (isSym(a[5]))      recv = a[5];
       else if (isSym(a[4])) recv = a[4];
       else { recv = synth(); a[5] = recv; mutated = true; }
     } else if (type === "tgl") {
+      // tgl: [size, init, SEND, RCV, LBL, ...]
       init = savedVal(1) ? 1 : 0;
       kind = "toggle";
+      lbl = unesc(a[4]);
       if (isSym(a[3]))      recv = a[3];
       else if (isSym(a[2])) recv = a[2];
       else { recv = synth(); a[3] = recv; mutated = true; }
+    } else if (type === "floatatom") {
+      // floatatom: [X, Y, W, LOW, HIGH, LABEL_POS, LABEL, RCV, SEND, ...]
+      // Note: RCV is *before* SEND here, opposite of hsl/nbx. 0/0 limits
+      // means "no limits" by Pd convention.
+      const lo = parseFloat(a[3]);
+      const hi = parseFloat(a[4]);
+      const noLimits = (lo === 0 && hi === 0);
+      min  = noLimits ? -Infinity : lo;
+      max  = noLimits ?  Infinity : hi;
+      kind = "number";
+      lbl = unesc(a[6]);
+      if (isSym(a[7]))      recv = a[7];
+      else if (isSym(a[8])) recv = a[8];
+      else { recv = synth(); a[7] = recv; mutated = true; }
     }
 
     if (mutated) {
       const leading  = body.match(/^\s*/)[0];
       const trailing = body.match(/\s*$/)[0];
-      parts[i] = leading + t.slice(0, 5).join(" ") + " " + a.join(" ") + trailing;
+      parts[i] = leading + t.slice(0, prefixLen).join(" ") + " " + a.join(" ") + trailing;
     }
 
     if (kind && recv) {
       add({
-        kind, receiver: recv,
+        kind, receiver: recv, label: lbl,
         min: isFinite(min) ? min : -Infinity,
         max: isFinite(max) ? max : Infinity,
         init: isFinite(init) ? init : 0,
@@ -151,16 +186,31 @@ function renderControls(controls) {
     ctrlsEl.innerHTML = "<em>No controls exposed by this patch.</em>";
     return;
   }
+  // Manifest defaults override the patch's saved init value. Match by RCV
+  // first (stable, recommended) and fall back to label so patches that only
+  // label their controls still work.
+  const defaults = currentPatch?.defaults || {};
+  const lookupDefault = (c) => {
+    if (c.receiver in defaults) return defaults[c.receiver];
+    if (c.label && c.label in defaults) return defaults[c.label];
+    return undefined;
+  };
   for (const c of controls) {
+    const override = lookupDefault(c);
+    if (override !== undefined) c.init = override;
     const row = document.createElement("div");
     row.className = "ctrl";
 
     const label = document.createElement("label");
-    // Hide the synthetic prefix for cleaner display while keeping the
-    // wire-level receiver name available on hover.
-    label.textContent = c.receiver.startsWith("__pdwa_")
-      ? `(unnamed ${c.kind})`
-      : c.receiver;
+    // Prefer the patch's own label (the visible text Pd shows next to the
+    // widget). Fall back to the receiver name, or "(unnamed kind)" when
+    // we synthesized the receiver. Receiver name still goes on the title
+    // attribute so it's visible on hover for debugging.
+    label.textContent = c.label
+      ? c.label
+      : (c.receiver.startsWith("__pdwa_")
+          ? `(unnamed ${c.kind})`
+          : c.receiver);
     label.title = c.receiver;
     row.appendChild(label);
 
@@ -213,6 +263,12 @@ function renderControls(controls) {
 
     widgetsByRecv.set(c.receiver, { kind: c.kind, setValue });
     node?.port.postMessage({ type: "bind", receiver: c.receiver });
+    // If a manifest default applies, push it into the patch after the bind
+    // is posted (postMessage preserves order, so the float arrives once
+    // libpd has registered the binding).
+    if (override !== undefined && c.kind !== "bang") {
+      sendFloat(c.receiver, override);
+    }
   }
 }
 

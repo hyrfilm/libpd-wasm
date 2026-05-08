@@ -1,9 +1,18 @@
 [
   {
-    "file": "patches/libpd-wasm-demo-4-verb.pd",
-    "title": "Reverb showcase",
-    "category": "Showcase",
-    "description": "Random sequences through a Moog-style filter into a stereo reverb. Toggle play to start; tweak cutoff, resonance, and the per-layer densities."
+    "file": "patches/dolphins-in-heaven.pd",
+    "title": "Dolphins in Heaven",
+    "category": "Generative mess",
+    "description": "3 channels, reverb3, bob ladder filter & subpatchers. Press play to start, adjust volumes & randomness.",
+    "defaults": {
+      "frequency": 7500,
+      "resonance": 0.6,
+      "freq1-prob": 0.5,
+      "freq2-prob": 0.5,
+      "track1-level": 0.25,
+      "track2-level": 0.25,
+      "track3-level": 0.25
+    }
   },
   {
     "file": "patches/sine.pd",
