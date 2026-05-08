@@ -270,6 +270,17 @@ function renderControls(controls) {
       sendFloat(c.receiver, override);
     }
   }
+  setControlsLocked(!node);
+}
+
+// Until the user hits Start, sendFloat/sendBang silently no-op (node is
+// null). Disable the inputs so dragging a slider before audio starts
+// can't desync the UI from libpd's actual state.
+function setControlsLocked(locked) {
+  ctrlsEl.classList.toggle("locked", locked);
+  for (const el of ctrlsEl.querySelectorAll("input, button")) {
+    el.disabled = locked;
+  }
 }
 
 function formatVal(v) {
@@ -336,6 +347,7 @@ async function start() {
 
   await readyPromise;
   loadCurrentPatch();
+  setControlsLocked(false);
 
   stopBtn.disabled  = false;
   reloadBtn.disabled = false;
@@ -348,6 +360,7 @@ function stop() {
   node = null;
   gain = null;
   ctx = null;
+  setControlsLocked(true);
   startBtn.disabled = false;
   stopBtn.disabled  = true;
   reloadBtn.disabled = true;

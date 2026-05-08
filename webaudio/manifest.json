@@ -3,7 +3,7 @@
     "file": "patches/dolphins-in-heaven.pd",
     "title": "Dolphins in Heaven",
     "category": "Generative mess",
-    "description": "3 channels, reverb3, bob ladder filter & subpatchers. Press play to start, adjust volumes & randomness.",
+    "description": "3 track-sequencer, reverb3, ladder filter & subpatchers. Press play to start, adjust the mix, filter & randomness by dragging the sliders.",
     "defaults": {
       "frequency": 7500,
       "resonance": 0.6,

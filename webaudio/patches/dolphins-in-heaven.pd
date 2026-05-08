@@ -1,6 +1,6 @@
 #N canvas 253 65 1325 820 12;
 #X obj 64 469 phasor~;
-#X obj 267 90 tgl 19 0 empty play start\ sequencer 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
+#X obj 267 90 tgl 19 0 empty play play 0 -10 0 12 #fcfcfc #000000 #000000 0 1;
 #X obj 368 744 bob~ 500 0.5;
 #X obj 770 269 line~;
 #X obj 770 226 pack f 50;
