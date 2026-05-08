@@ -99,6 +99,7 @@ void socketreceiver_set_fromaddrfn(t_socketreceiver *x,
 
 /* === s_inter_gui.c === */
 void sys_vgui(const char *fmt, ...) {}
+void sys_gui(const char *s)         {}
 int  sys_havegui(void)    { return 0; }
 int  sys_havetkproc(void) { return 0; }
 void sys_queuegui(void *client, t_glist *glist, t_guicallbackfn f) {}

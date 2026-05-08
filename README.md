@@ -63,6 +63,55 @@ build-wasm/libpd.wasm
 webaudio/libpd-worklet.js
 ```
 
+If the `extra-libs/cyclone` submodule is checked out, the build also produces a "full" variant with the cyclone library statically linked:
+
+```text
+build-wasm/libpd-full.js
+build-wasm/libpd-full.wasm
+webaudio/libpd-worklet-full.js
+```
+
+The demo prefers `libpd-worklet-full.js` and falls back to the basic worklet if the full bundle isn't present, so the basic build still works in environments without the submodule (e.g. CI without `--recurse-submodules`).
+
+## Extra libraries
+
+### cyclone
+
+[pd-cyclone](https://github.com/porres/pd-cyclone) ships as a submodule under `extra-libs/cyclone`. The build script:
+
+1. Runs cyclone's own CMake (configure step only) to generate `single_lib.c`, the file that declares and calls every `*_setup()` in the library.
+2. Compiles cyclone's `.c` files directly into the `libpd-full*` bundles.
+3. Defines `CYCLONE_SINGLE_LIBRARY=1` so `cyclone_setup()` invokes `setup_single_lib()`.
+4. Embeds `cyclone_objects/abstractions/*.pd` into the wasm filesystem at `/extra/` alongside Pd's own extras.
+5. Calls `cyclone_setup()` from the worklet right after `libpd_init()` (gated on the symbol's existence so the basic bundle still boots).
+
+Out of ~192 cyclone classes, all but `coll` register at runtime.
+
+#### Skipped cyclone objects
+
+Tracked in `scripts/build-wasm.sh` under `cyclone_skip_re` / `cyclone_skip_setups`:
+
+| Object | Reason | Could it be revisited? |
+| --- | --- | --- |
+| `coll` | Uses `pthread` mutexes for its async file I/O path. | Probably yes — Emscripten supports `-pthread`. The mutexes guard a save/load worker thread; in-memory FS may make even a no-op stub good enough. Worth trying before treating it as truly hard. |
+| `scope_dialog.c` | Tcl/Tk snippet `#include`'d by `scope.c`, not a translation unit. | Not really an object — the file is excluded from compilation but `scope~` itself is still built. |
+
+If you add an object to the skip list, also add a row here.
+
+#### Build-time hacks worth cleaning up
+
+- `-Wl,--allow-multiple-definition` — cyclone's `shared/control/s_cycloneutf8.c` is a near-copy of pd's `s_utf8.c` with only 3 of ~13 helpers actually prefixed with `cyclone_`. The rest collide with libpd's symbols. Bodies are byte-identical, so the linker flag is safe; the proper fix is upstreaming a PR that either prefixes the remaining helpers or has cyclone include libpd's `s_utf8.h` directly.
+- `-DSHARED_HIOFFSET=1 -DSHARED_LOWOFFSET=0` — cyclone's `shared.h` has explicit endian branches for linux/win/apple/irix only. wasm32 is little-endian, so we predefine the offsets. Could be upstreamed as another `#elif defined(__EMSCRIPTEN__)` branch.
+- Generated `single_lib.c` is post-processed with `sed` to drop calls for skipped classes — fine for now, would be cleaner if cyclone's CMake supported a class exclusion list.
+
+#### Boot spam
+
+Cyclone prints its banner, "Cyclone Browser plug-in installed" notice, and a deprecation warning per legacy class on every load. None of this means anything broke; it's the same output cyclone produces in stock Pd. We may want to call `libpd_set_verbose(0)` before `cyclone_setup()` if it gets in the way.
+
+### ELSE
+
+Not yet integrated. Next iteration.
+
 ## Development
 
 Use Nix directly:

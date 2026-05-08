@@ -91,5 +91,11 @@
     "title": "Drone",
     "category": "Ambient",
     "description": "Three slightly detuned sines. Spread controls beating speed."
+  },
+  {
+    "file": "patches/cyclone-cycle.pd",
+    "title": "cyclone [cycle~]",
+    "category": "cyclone",
+    "description": "Smoke test for the cyclone library: Max-style sinusoidal oscillator [cycle~]."
   }
 ]

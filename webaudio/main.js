@@ -334,7 +334,14 @@ async function start() {
 
   readyPromise = new Promise((res, rej) => { readyResolve = res; readyReject = rej; });
 
-  await ctx.audioWorklet.addModule("./libpd-worklet.js");
+  // Prefer the cyclone-enabled bundle when available; fall back to the
+  // smaller basic build if it isn't (e.g. running CI without the
+  // extra-libs/cyclone submodule).
+  try {
+    await ctx.audioWorklet.addModule("./libpd-worklet-full.js");
+  } catch {
+    await ctx.audioWorklet.addModule("./libpd-worklet.js");
+  }
   log("worklet module loaded");
 
   node = new AudioWorkletNode(ctx, "libpd", { outputChannelCount: [2] });

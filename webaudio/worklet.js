@@ -17,7 +17,10 @@ if (typeof WorkerGlobalScope === "undefined") {
   globalThis.WorkerGlobalScope = function () {};
 }
 
-import LibPdFactory from "../build-wasm/libpd-single.js";
+// Resolved by esbuild --alias at bundle time so the same source compiles
+// against either build-wasm/libpd-single.js (basic) or libpd-full-single.js
+// (with cyclone). See scripts/build-wasm.sh.
+import LibPdFactory from "libpd-impl";
 
 const PD_BLOCK = 64;
 const QUANTUM  = 128;
@@ -68,6 +71,9 @@ class LibPdProcessor extends AudioWorkletProcessor {
     lib._libpd_set_floathook(floathookPtr);
 
     lib._libpd_init();
+    // Register cyclone classes (Max compatibility lib) when present.
+    // Symbol only exists in the libpd-full bundle.
+    if (lib._cyclone_setup) lib._cyclone_setup();
     lib._libpd_init_audio(IN_CH, OUT_CH, sampleRate);
 
     this.inPtr  = IN_CH  ? lib._malloc(QUANTUM * IN_CH  * 4) : 0;
