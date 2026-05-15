@@ -136,3 +136,21 @@ const char *sys_deken_specifier(char *buf, size_t bufsize,
   (void)buf; (void)bufsize; (void)float_agnostic; (void)cpu;
   return NULL;
 }
+
+/* === MIDI out bridge ===
+ *
+ * Pd's MIDI-out objects ([noteout], [ctlout], ELSE's [note.out],
+ * [bend.out], etc.) call sys_putmidibyte() to push bytes to the host's
+ * MIDI driver. libpd refactored this path: its own equivalent is
+ * outmidi_byte(), defined in s_libpdmidi.c, which routes to whatever
+ * hook the embedder installed via libpd_set_midibytehook().
+ *
+ * The basic + cyclone builds didn't reference sys_putmidibyte, so the
+ * symbol stayed harmlessly unreferenced. ELSE has six *.out objects
+ * that do call it (bend.out, ctl.out, note.out, pgm.out, ptouch.out,
+ * touch.out), tripping wasm-ld at link time. Bridging the two names
+ * keeps those objects functional and routes MIDI through libpd's hook. */
+extern void outmidi_byte(int port, int value);
+void sys_putmidibyte(int portno, int byte) {
+  outmidi_byte(portno, byte);
+}

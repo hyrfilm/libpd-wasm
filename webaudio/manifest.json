@@ -96,6 +96,14 @@
     "file": "patches/cyclone-cycle.pd",
     "title": "cyclone [cycle~]",
     "category": "cyclone",
-    "description": "Smoke test for the cyclone library: Max-style sinusoidal oscillator [cycle~]."
+    "description": "Smoke test for the cyclone library: Max-style sinusoidal oscillator [cycle~].",
+    "library": "cyclone"
+  },
+  {
+    "file": "patches/else-saw.pd",
+    "title": "ELSE [saw~]",
+    "category": "else",
+    "description": "Smoke test for the ELSE library: anti-aliased sawtooth [saw~].",
+    "library": "else"
   }
 ]

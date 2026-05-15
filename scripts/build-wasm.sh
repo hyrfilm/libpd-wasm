@@ -51,20 +51,80 @@ common_emcc_args=(
   -O2
 )
 
-emcc "${common_emcc_args[@]}" \
-  -o build-wasm/libpd.js
+# ---------------------------------------------------------------------------
+# Variant build helper.
+#
+# Each variant produces three artefacts:
+#   build-wasm/libpd<suffix>.js           — separate .js + .wasm
+#   build-wasm/libpd<suffix>-single.js    — single-file (wasm embedded base64)
+#   webaudio/libpd-worklet<wsuffix>.js    — worklet bundle aliased at the above
+#
+# Variant naming: basic uses no suffix (matches release-asset names); every
+# other variant is suffixed with its library name (-cyclone, -else, ...).
+#
+# Args:
+#   $1 = variant name ("basic" | "cyclone" | "else" | ...)
+#   $2..$5 = names of bash arrays that hold extra inputs (passed by name so
+#            bash can splice them in). For variants with nothing to add (e.g.
+#            "basic"), pass empty-array names.
+#       $2: sources       — extra .c files
+#       $3: embeds        — extra --embed-file args
+#       $4: flags         — extra emcc flags (-I, -D, ...)
+#       $5: extra_export  — symbol name to splice into EXPORTED_FUNCTIONS, or ""
+# ---------------------------------------------------------------------------
+bundle_variant() {
+  local name=$1
+  local -n srcs="$2"
+  local -n embeds="$3"
+  local -n flags="$4"
+  local extra_export=$5
 
-emcc "${common_emcc_args[@]}" \
-  -s SINGLE_FILE=1 \
-  -o build-wasm/libpd-single.js
+  local suffix=""
+  local wsuffix=""
+  if [[ "$name" != basic ]]; then
+    suffix="-$name"
+    wsuffix="-$name"
+  fi
+
+  # Splice the variant's setup symbol into EXPORTED_FUNCTIONS if needed.
+  local variant_common=("${common_emcc_args[@]}")
+  if [[ -n "$extra_export" ]]; then
+    for i in "${!variant_common[@]}"; do
+      if [[ "${variant_common[$i]}" == EXPORTED_FUNCTIONS=* ]]; then
+        variant_common[$i]="${variant_common[$i]/_libpd_init\"/_libpd_init\",\"${extra_export}\"}"
+      fi
+    done
+  fi
+
+  echo "→ building libpd${suffix}"
+
+  emcc "${variant_common[@]}" "${srcs[@]}" "${embeds[@]}" "${flags[@]}" \
+    -o "build-wasm/libpd${suffix}.js"
+
+  emcc "${variant_common[@]}" "${srcs[@]}" "${embeds[@]}" "${flags[@]}" \
+    -s SINGLE_FILE=1 \
+    -o "build-wasm/libpd${suffix}-single.js"
+
+  esbuild \
+    --bundle webaudio/worklet.js \
+    --format=iife \
+    "--alias:libpd-impl=./build-wasm/libpd${suffix}-single.js" \
+    --log-override:empty-import-meta=silent \
+    "--outfile=webaudio/libpd-worklet${wsuffix}.js"
+}
 
 # ---------------------------------------------------------------------------
-# Optional "full" build: libpd + cyclone (Max compatibility library).
-# Run only when the cyclone submodule is checked out — otherwise just skip.
+# basic variant: just libpd + pd's own extras. No extra sources, embeds,
+# flags, or exports.
+# ---------------------------------------------------------------------------
+basic_sources=(); basic_embeds=(); basic_flags=()
+bundle_variant basic basic_sources basic_embeds basic_flags ""
+
+# ---------------------------------------------------------------------------
+# cyclone variant: libpd + pd-cyclone (Max compatibility library).
+# Built only when the submodule is checked out — otherwise skip.
 # ---------------------------------------------------------------------------
 if [[ -d extra-libs/cyclone/cyclone_objects ]]; then
-  echo "→ building libpd-full with cyclone"
-
   # Cyclone ships a CMakeLists that, with BUILD_SINGLE_LIBRARY=ON, generates
   # cyclone_objects/binaries/single_lib.c with declarations + calls for every
   # `*_setup()` in the library. We use it for that one generated file only —
@@ -78,13 +138,12 @@ if [[ -d extra-libs/cyclone/cyclone_objects ]]; then
     >/dev/null
 
   # Skip list — objects we know need patches we haven't done yet. Document
-  # additions in README.md under "cyclone: skipped objects".
+  # additions in README.md under "cyclone: skipped objects". Policy: skip
+  # anything that needs pthread, sockets, GL, fftw, sndfile, samplerate, or
+  # other heavy deps that wasm doesn't ship.
   #   coll.c         — uses pthread mutexes for its async file I/O path.
   #   scope_dialog.c — Tcl/Tk snippet #include'd by scope.c, not a TU.
   cyclone_skip_re='/(coll|scope_dialog)\.c$'
-  # Class setups to strip from the generated single_lib.c (must match a
-  # subset of the file skip list — only files with `<name>_setup()` in
-  # single_lib.c need entries here).
   cyclone_skip_setups=( coll )
 
   for cls in "${cyclone_skip_setups[@]}"; do
@@ -111,17 +170,15 @@ if [[ -d extra-libs/cyclone/cyclone_objects ]]; then
   shopt -u nullglob
 
   # Embed cyclone abstractions alongside pd's own extras at /extra/.
-  cyclone_embed_args=()
+  cyclone_embeds=()
   for f in extra-libs/cyclone/cyclone_objects/abstractions/*.pd; do
-    cyclone_embed_args+=( --embed-file "$f@/extra/$(basename "$f")" )
+    cyclone_embeds+=( --embed-file "$f@/extra/$(basename "$f")" )
   done
 
   # Cyclone-specific compile args:
   #   -DCYCLONE_SINGLE_LIBRARY=1   makes cyclone_setup() call setup_single_lib()
   #   -I shared                    so #include <common/api.h> resolves
-  cyclone_emcc_args=(
-    "${cyclone_sources[@]}"
-    "${cyclone_embed_args[@]}"
+  cyclone_flags=(
     -I extra-libs/cyclone/shared
     -I extra-libs/cyclone
     -DCYCLONE_SINGLE_LIBRARY=1
@@ -137,39 +194,127 @@ if [[ -d extra-libs/cyclone/cyclone_objects ]]; then
     -Wl,--allow-multiple-definition
   )
 
-  # Replace the EXPORTED_FUNCTIONS arg to also export _cyclone_setup so the
-  # worklet can register cyclone classes after libpd_init.
-  full_args=("${common_emcc_args[@]}")
-  for i in "${!full_args[@]}"; do
-    if [[ "${full_args[$i]}" == EXPORTED_FUNCTIONS=* ]]; then
-      full_args[$i]="${full_args[$i]/_libpd_init\"/_libpd_init\",\"_cyclone_setup\"}"
-    fi
-  done
-
-  emcc "${full_args[@]}" "${cyclone_emcc_args[@]}" \
-    -o build-wasm/libpd-full.js
-
-  emcc "${full_args[@]}" "${cyclone_emcc_args[@]}" \
-    -s SINGLE_FILE=1 \
-    -o build-wasm/libpd-full-single.js
+  bundle_variant cyclone cyclone_sources cyclone_embeds cyclone_flags _cyclone_setup
 fi
 
 # ---------------------------------------------------------------------------
-# Worklet bundle. esbuild's --alias swaps the libpd-impl placeholder import
-# for whichever build we want, so worklet.js stays single-source.
+# ELSE variant: libpd + pd-else (porres/pd-else, large modern DSP library).
+# Submodule lives at extra-libs/else, pinned via .gitmodules.
+#
+# Skip-list (applied identically to the cyclone policy):
+#   Source/Control/sfload.c    — pthread + ffmpeg
+#   Source/Control/sfinfo.c    — ffmpeg
+#   Source/Audio/play.file~.c  — ffmpeg
+#   Source/Audio/pdlink~.c     — libsamplerate + opus + Ableton Link
+#   Source/Audio/beat~.c       — aubio
+#   Source/Audio/conv~.c       — kiss_fft
+#   Source/Control/osc.format.c, osc.parse.c
+#                              — Shared/OSC.h pulls in <netinet/in.h>
+#   Source/Control/else.c      — calls lua_setup(); pdlua/Lua is not compiled
+# The bundled-dep subtrees under Source/Shared/{aubio,ffmpeg,kiss_fft,
+# libsamplerate,link,opus}/ are excluded by globbing Source/Shared/*.c
+# (top-level only). ELSE doesn't ship <fftw3.h> or <sndfile.h>; it routes
+# those through its bundled kiss_fft + its own Source/Shared/elsefile.c.
 # ---------------------------------------------------------------------------
-esbuild \
-  --bundle webaudio/worklet.js \
-  --format=iife \
-  --alias:libpd-impl=./build-wasm/libpd-single.js \
-  --log-override:empty-import-meta=silent \
-  --outfile=webaudio/libpd-worklet.js
+if [[ -d extra-libs/else/Source ]]; then
+  echo "→ preparing ELSE build"
 
-if [[ -f build-wasm/libpd-full-single.js ]]; then
-  esbuild \
-    --bundle webaudio/worklet.js \
-    --format=iife \
-    --alias:libpd-impl=./build-wasm/libpd-full-single.js \
-    --log-override:empty-import-meta=silent \
-    --outfile=webaudio/libpd-worklet-full.js
+  # `pdlink~?` matches both pdlink~.c (audio) and pdlink.c (control); both
+  # pull in the Ableton Link bundled tree we exclude.
+  else_skip_re='/(sfload|sfinfo|pdlink~?|beat~|conv~|play\.file~|osc\.format|osc\.parse|else)\.c$'
+
+  # Walk Audio/, Control/, and Extra/Aliases/ — the externals proper.
+  # Skip anything matching the policy. Aliases are real externals with
+  # their own setup functions; they need to be registered too.
+  else_extern_sources=()
+  shopt -s nullglob
+  for f in extra-libs/else/Source/Audio/*.c \
+           extra-libs/else/Source/Control/*.c \
+           extra-libs/else/Source/Extra/Aliases/*.c; do
+    [[ "$f" =~ $else_skip_re ]] && continue
+    else_extern_sources+=( "$f" )
+  done
+  shopt -u nullglob
+
+  # Generate else_lib.c. ELSE has no equivalent of cyclone's
+  # BUILD_SINGLE_LIBRARY mode, so we synthesize the registration TU
+  # ourselves: walk each external, extract its setup symbol, emit an
+  # extern + a call inside a wrapper function. ELSE uses two
+  # naming conventions side-by-side — the legacy `<name>_setup` and the
+  # newer `setup_<munged>` where `~`→`_tilde`, `.`→`0x2e` — so we match
+  # either by regex against `^void X(void){`.
+  mkdir -p build-wasm/else-cfg
+  else_lib=build-wasm/else-cfg/else_lib.c
+  : > "$else_lib"
+  {
+    echo "/* Auto-generated by scripts/build-wasm.sh. */"
+    echo "/* Calls every setup function in pd-else for the libpd-else bundle. */"
+    echo ""
+  } > "$else_lib"
+
+  else_symbols=()
+  else_missing=0
+  for f in "${else_extern_sources[@]}"; do
+    # grep returns 1 when no match — silence it so set -e + pipefail
+    # don't kill the build on every file that lacks a setup symbol.
+    # Accepts: `void NAME(void)`, `extern void NAME(void)`, with optional
+    # whitespace inside the parens (ELSE has `(void )` in a few files).
+    sym=$(grep -hE "^(extern[[:space:]]+)?void[[:space:]]+(setup_[a-zA-Z0-9_]+|[a-zA-Z0-9_]+_setup)[[:space:]]*\([[:space:]]*void[[:space:]]*\)" "$f" 2>/dev/null \
+          | head -1 \
+          | sed -E 's/^(extern[[:space:]]+)?void[[:space:]]+//; s/[[:space:]]*\([[:space:]]*void[[:space:]]*\).*$//' || true)
+    if [[ -n "$sym" ]]; then
+      else_symbols+=( "$sym" )
+      printf 'extern void %s(void); /* %s */\n' "$sym" "$f" >> "$else_lib"
+    else
+      echo "  warn: no setup symbol in $f" >&2
+      else_missing=$((else_missing + 1))
+    fi
+  done
+  {
+    echo ""
+    echo "extern void post(const char *fmt, ...);"
+    echo "void libpd_else_setup(void) {"
+    for s in "${else_symbols[@]}"; do
+      # Bisection aid: bracket each call with before/after prints so a
+      # hang inside the setup function (no "<<" emitted) is distinguishable
+      # from a hang afterwards (">>" of next symbol never reached).
+      printf '    post(">> %s");\n' "$s"
+      printf '    %s();\n' "$s"
+      printf '    post("<< %s");\n' "$s"
+    done
+    echo "}"
+  } >> "$else_lib"
+
+  echo "→ generated $else_lib with ${#else_symbols[@]} object setups (${else_missing} files had no detectable symbol)"
+
+  # Source list: generated lib + Shared/ helpers (top-level only, no
+  # bundled deps) + every non-skipped external.
+  else_sources=( "$else_lib" )
+  shopt -s nullglob
+  for f in extra-libs/else/Source/Shared/*.c; do
+    else_sources+=( "$f" )
+  done
+  shopt -u nullglob
+  else_sources+=( "${else_extern_sources[@]}" )
+
+  # Embed ELSE's abstractions alongside Pd's own extras at /extra/.
+  else_embeds=()
+  shopt -s nullglob
+  for f in extra-libs/else/Abstractions/Audio/*.pd \
+           extra-libs/else/Abstractions/Control/*.pd \
+           extra-libs/else/Abstractions/Extra/*.pd; do
+    else_embeds+=( --embed-file "$f@/extra/$(basename "$f")" )
+  done
+  shopt -u nullglob
+
+  else_flags=(
+    -I extra-libs/else/Source/Shared
+    -I extra-libs/else/Source
+    # s_elseutf8.c defines u8_* symbols that collide with libpd's s_utf8.c
+    # (only `else_u8_wc_nbytes` is actually prefixed; the rest aren't).
+    # Bodies are byte-identical, so let the linker keep the first one.
+    -Wl,--allow-multiple-definition
+  )
+
+  bundle_variant else else_sources else_embeds else_flags _libpd_else_setup
 fi

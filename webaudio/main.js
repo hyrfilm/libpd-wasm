@@ -24,7 +24,18 @@ let node = null;
 let gain = null;
 let manifest = [];
 let currentPatch = null;          // { file, title, description, content }
+let loadedLibrary = null;         // which worklet bundle is currently in ctx
 const widgetsByRecv = new Map();  // receiver -> { kind, setValue }
+
+// Each variant of the build outputs its own worklet bundle. The currently
+// selected patch's `library` field (in manifest.json) decides which one we
+// load. Patches that omit the field default to "basic".
+const LIBRARY_WORKLETS = {
+  basic:   "./libpd-worklet.js",
+  cyclone: "./libpd-worklet-cyclone.js",
+  else:    "./libpd-worklet-else.js",
+};
+const patchLibrary = (p) => p?.library || "basic";
 
 let readyResolve, readyReject, readyPromise;
 
@@ -334,15 +345,24 @@ async function start() {
 
   readyPromise = new Promise((res, rej) => { readyResolve = res; readyReject = rej; });
 
-  // Prefer the cyclone-enabled bundle when available; fall back to the
-  // smaller basic build if it isn't (e.g. running CI without the
-  // extra-libs/cyclone submodule).
+  // Pick the worklet that matches the selected patch's library. Fall back
+  // to basic if the requested bundle isn't deployed (e.g. ELSE submodule
+  // missing in CI), and record which one actually loaded.
+  const wantLibrary = patchLibrary(currentPatch);
+  const wantUrl = LIBRARY_WORKLETS[wantLibrary] || LIBRARY_WORKLETS.basic;
   try {
-    await ctx.audioWorklet.addModule("./libpd-worklet-full.js");
+    await ctx.audioWorklet.addModule(wantUrl);
+    loadedLibrary = wantLibrary;
   } catch {
-    await ctx.audioWorklet.addModule("./libpd-worklet.js");
+    if (wantLibrary !== "basic") {
+      log(`worklet for "${wantLibrary}" not available — falling back to basic`);
+      await ctx.audioWorklet.addModule(LIBRARY_WORKLETS.basic);
+      loadedLibrary = "basic";
+    } else {
+      throw new Error("basic worklet bundle missing");
+    }
   }
-  log("worklet module loaded");
+  log(`worklet module loaded (${loadedLibrary})`);
 
   node = new AudioWorkletNode(ctx, "libpd", { outputChannelCount: [2] });
   node.port.onmessage = (e) => onWorkletMessage(e.data);
@@ -367,6 +387,7 @@ function stop() {
   node = null;
   gain = null;
   ctx = null;
+  loadedLibrary = null;
   setControlsLocked(true);
   startBtn.disabled = false;
   stopBtn.disabled  = true;
@@ -432,7 +453,18 @@ patchPicker.addEventListener("change", async () => {
   const meta = manifest.find((p) => p.file === patchPicker.value);
   if (!meta) return;
   await selectPatch(meta);
-  if (node) loadCurrentPatch();
+  if (node) {
+    // If the new patch requires a different library bundle than the one
+    // already running in the audio context, we have to tear down and
+    // re-init — AudioWorklet modules can't be hot-swapped.
+    if (patchLibrary(meta) !== loadedLibrary) {
+      log(`library switch: ${loadedLibrary} → ${patchLibrary(meta)} (restarting audio)`);
+      stop();
+      await start();
+    } else {
+      loadCurrentPatch();
+    }
+  }
 });
 
 reloadBtn.addEventListener("click", () => {

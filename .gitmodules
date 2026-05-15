@@ -7,3 +7,6 @@
 [submodule "extra-libs/cyclone"]
 	path = extra-libs/cyclone
 	url = https://github.com/porres/pd-cyclone.git
+[submodule "extra-libs/else"]
+	path = extra-libs/else
+	url = https://github.com/porres/pd-else.git

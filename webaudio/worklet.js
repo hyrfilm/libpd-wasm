@@ -18,8 +18,9 @@ if (typeof WorkerGlobalScope === "undefined") {
 }
 
 // Resolved by esbuild --alias at bundle time so the same source compiles
-// against either build-wasm/libpd-single.js (basic) or libpd-full-single.js
-// (with cyclone). See scripts/build-wasm.sh.
+// against any of build-wasm/libpd-{basic,cyclone,else}-single.js. The
+// per-library setup symbols (_cyclone_setup, _libpd_else_setup, ...) are gated
+// on existence below so this source stays one file. See scripts/build-wasm.sh.
 import LibPdFactory from "libpd-impl";
 
 const PD_BLOCK = 64;
@@ -71,9 +72,13 @@ class LibPdProcessor extends AudioWorkletProcessor {
     lib._libpd_set_floathook(floathookPtr);
 
     lib._libpd_init();
-    // Register cyclone classes (Max compatibility lib) when present.
-    // Symbol only exists in the libpd-full bundle.
-    if (lib._cyclone_setup) lib._cyclone_setup();
+    // Register library classes when present. Each setup symbol only
+    // exists in its matching bundle (libpd-cyclone-*.js exports
+    // _cyclone_setup; libpd-else-*.js exports _libpd_else_setup; basic exports
+    // neither). Order matters if libraries shadow each other's class names
+    // — first-registered wins for legacy name clashes.
+    if (lib._cyclone_setup)    lib._cyclone_setup();
+    if (lib._libpd_else_setup) lib._libpd_else_setup();
     lib._libpd_init_audio(IN_CH, OUT_CH, sampleRate);
 
     this.inPtr  = IN_CH  ? lib._malloc(QUANTUM * IN_CH  * 4) : 0;
