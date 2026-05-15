@@ -7,6 +7,7 @@ const stopBtn    = document.getElementById("stop");
 const reloadBtn  = document.getElementById("reload");
 const patchPicker = document.getElementById("patchPicker");
 const patchDesc  = document.getElementById("patchDesc");
+const patchSourcePanel = document.getElementById("patchSourcePanel");
 const patchEl    = document.getElementById("patch");
 const ctrlsEl    = document.getElementById("controls");
 const logEl      = document.getElementById("log");
@@ -19,12 +20,33 @@ const log = (m) => {
   logEl.scrollTop = logEl.scrollHeight;
 };
 
+const NOISY_PD_PRINTS = [
+  /^>> [A-Za-z0-9_]+$/,
+  /^<< [A-Za-z0-9_]+$/,
+  /^error: \[cyclone\/[^\]]+\] is deprecated\b/,
+];
+
+function shouldShowPdPrint(text) {
+  return !NOISY_PD_PRINTS.some((re) => re.test(text));
+}
+
 let ctx = null;
 let node = null;
 let gain = null;
 let manifest = [];
 let currentPatch = null;          // { file, title, description, content }
+let loadedLibrary = null;         // which worklet bundle is currently in ctx
 const widgetsByRecv = new Map();  // receiver -> { kind, setValue }
+
+// Each variant of the build outputs its own worklet bundle. The currently
+// selected patch's `library` field (in manifest.json) decides which one we
+// load. Patches that omit the field default to "basic".
+const LIBRARY_WORKLETS = {
+  basic:   "./libpd-worklet.js",
+  cyclone: "./libpd-worklet-cyclone.js",
+  else:    "./libpd-worklet-else.js",
+};
+const patchLibrary = (p) => p?.library || "basic";
 
 let readyResolve, readyReject, readyPromise;
 
@@ -263,14 +285,17 @@ function renderControls(controls) {
 
     widgetsByRecv.set(c.receiver, { kind: c.kind, setValue });
     node?.port.postMessage({ type: "bind", receiver: c.receiver });
-    // If a manifest default applies, push it into the patch after the bind
-    // is posted (postMessage preserves order, so the float arrives once
-    // libpd has registered the binding).
-    if (override !== undefined && c.kind !== "bang") {
-      sendFloat(c.receiver, override);
-    }
+    // Push the visible initial GUI state into the patch after binding.
+    // Pd restores GUI values visually, but receive-driven patches only react
+    // after a value is sent; this keeps the patch audible without a first drag.
+    sendInitialControlValue(c);
   }
   setControlsLocked(!node);
+}
+
+function sendInitialControlValue(c) {
+  if (!node || c.kind === "bang" || !c._fromGui) return;
+  sendFloat(c.receiver, c.kind === "toggle" ? (c.init ? 1 : 0) : parseFloat(c.init));
 }
 
 // Until the user hits Start, sendFloat/sendBang silently no-op (node is
@@ -306,7 +331,7 @@ function onWorkletMessage(data) {
     case "ready":         readyResolve?.(); break;
     case "error":         readyReject?.(new Error(data.message));
                           log("error: " + data.message); break;
-    case "print":         log("pd: " + data.text); break;
+    case "print":         if (shouldShowPdPrint(data.text)) log("pd: " + data.text); break;
     case "patch-opened":  log(data.ok ? "patch opened" : "patch open FAILED"); break;
     case "recv-float": {
       const w = widgetsByRecv.get(data.receiver);
@@ -334,8 +359,24 @@ async function start() {
 
   readyPromise = new Promise((res, rej) => { readyResolve = res; readyReject = rej; });
 
-  await ctx.audioWorklet.addModule("./libpd-worklet.js");
-  log("worklet module loaded");
+  // Pick the worklet that matches the selected patch's library. Fall back
+  // to basic if the requested bundle isn't deployed (e.g. ELSE submodule
+  // missing in CI), and record which one actually loaded.
+  const wantLibrary = patchLibrary(currentPatch);
+  const wantUrl = LIBRARY_WORKLETS[wantLibrary] || LIBRARY_WORKLETS.basic;
+  try {
+    await ctx.audioWorklet.addModule(wantUrl);
+    loadedLibrary = wantLibrary;
+  } catch {
+    if (wantLibrary !== "basic") {
+      log(`worklet for "${wantLibrary}" not available — falling back to basic`);
+      await ctx.audioWorklet.addModule(LIBRARY_WORKLETS.basic);
+      loadedLibrary = "basic";
+    } else {
+      throw new Error("basic worklet bundle missing");
+    }
+  }
+  log(`worklet module loaded (${loadedLibrary})`);
 
   node = new AudioWorkletNode(ctx, "libpd", { outputChannelCount: [2] });
   node.port.onmessage = (e) => onWorkletMessage(e.data);
@@ -360,6 +401,7 @@ function stop() {
   node = null;
   gain = null;
   ctx = null;
+  loadedLibrary = null;
   setControlsLocked(true);
   startBtn.disabled = false;
   stopBtn.disabled  = true;
@@ -425,7 +467,18 @@ patchPicker.addEventListener("change", async () => {
   const meta = manifest.find((p) => p.file === patchPicker.value);
   if (!meta) return;
   await selectPatch(meta);
-  if (node) loadCurrentPatch();
+  if (node) {
+    // If the new patch requires a different library bundle than the one
+    // already running in the audio context, we have to tear down and
+    // re-init — AudioWorklet modules can't be hot-swapped.
+    if (patchLibrary(meta) !== loadedLibrary) {
+      log(`library switch: ${loadedLibrary} → ${patchLibrary(meta)} (restarting audio)`);
+      stop();
+      await start();
+    } else {
+      loadCurrentPatch();
+    }
+  }
 });
 
 reloadBtn.addEventListener("click", () => {
@@ -452,12 +505,24 @@ volume.addEventListener("input", () => {
   if (gain) gain.gain.value = v;
 });
 
-// Drag-and-drop a .pd file onto the textarea.
-patchEl.addEventListener("dragover", (e) => { e.preventDefault(); patchEl.classList.add("dropping"); });
-patchEl.addEventListener("dragleave", () => patchEl.classList.remove("dropping"));
-patchEl.addEventListener("drop", async (e) => {
+// Drag-and-drop a .pd file onto the source panel.
+function setPatchDropState(dropping) {
+  patchSourcePanel.classList.toggle("dropping", dropping);
+  patchEl.classList.toggle("dropping", dropping);
+}
+
+patchSourcePanel.addEventListener("dragover", (e) => {
   e.preventDefault();
-  patchEl.classList.remove("dropping");
+  patchSourcePanel.open = true;
+  setPatchDropState(true);
+});
+patchSourcePanel.addEventListener("dragleave", (e) => {
+  if (patchSourcePanel.contains(e.relatedTarget)) return;
+  setPatchDropState(false);
+});
+patchSourcePanel.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  setPatchDropState(false);
   const file = e.dataTransfer.files[0];
   if (!file) return;
   const text = await file.text();

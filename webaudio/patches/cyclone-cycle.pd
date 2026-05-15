@@ -1,0 +1,12 @@
+#N canvas 0 0 500 360 10;
+#X obj 30 30 hsl 200 15 50 2000 0 220 empty cycle_freq freq -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 70 hsl 200 15 0 1 0 0.2 empty cycle_amp amp -2 -8 0 10 #fcfcfc #000000 #000000 0 1;
+#X obj 30 130 cycle~;
+#X obj 30 170 *~;
+#X obj 30 210 dac~;
+#X text 250 30 cyclone [cycle~] (Max-style sine osc);
+#X connect 0 0 2 0;
+#X connect 1 0 3 1;
+#X connect 2 0 3 0;
+#X connect 3 0 4 0;
+#X connect 3 0 4 1;

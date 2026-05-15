@@ -4,3 +4,9 @@
 [submodule "pure-data"]
 	path = pure-data
 	url = https://github.com/pure-data/pure-data.git
+[submodule "extra-libs/cyclone"]
+	path = extra-libs/cyclone
+	url = https://github.com/porres/pd-cyclone.git
+[submodule "extra-libs/else"]
+	path = extra-libs/else
+	url = https://github.com/porres/pd-else.git
