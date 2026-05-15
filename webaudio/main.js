@@ -7,6 +7,7 @@ const stopBtn    = document.getElementById("stop");
 const reloadBtn  = document.getElementById("reload");
 const patchPicker = document.getElementById("patchPicker");
 const patchDesc  = document.getElementById("patchDesc");
+const patchSourcePanel = document.getElementById("patchSourcePanel");
 const patchEl    = document.getElementById("patch");
 const ctrlsEl    = document.getElementById("controls");
 const logEl      = document.getElementById("log");
@@ -18,6 +19,16 @@ const log = (m) => {
   logEl.textContent += m + "\n";
   logEl.scrollTop = logEl.scrollHeight;
 };
+
+const NOISY_PD_PRINTS = [
+  /^>> [A-Za-z0-9_]+$/,
+  /^<< [A-Za-z0-9_]+$/,
+  /^error: \[cyclone\/[^\]]+\] is deprecated\b/,
+];
+
+function shouldShowPdPrint(text) {
+  return !NOISY_PD_PRINTS.some((re) => re.test(text));
+}
 
 let ctx = null;
 let node = null;
@@ -274,14 +285,17 @@ function renderControls(controls) {
 
     widgetsByRecv.set(c.receiver, { kind: c.kind, setValue });
     node?.port.postMessage({ type: "bind", receiver: c.receiver });
-    // If a manifest default applies, push it into the patch after the bind
-    // is posted (postMessage preserves order, so the float arrives once
-    // libpd has registered the binding).
-    if (override !== undefined && c.kind !== "bang") {
-      sendFloat(c.receiver, override);
-    }
+    // Push the visible initial GUI state into the patch after binding.
+    // Pd restores GUI values visually, but receive-driven patches only react
+    // after a value is sent; this keeps the patch audible without a first drag.
+    sendInitialControlValue(c);
   }
   setControlsLocked(!node);
+}
+
+function sendInitialControlValue(c) {
+  if (!node || c.kind === "bang" || !c._fromGui) return;
+  sendFloat(c.receiver, c.kind === "toggle" ? (c.init ? 1 : 0) : parseFloat(c.init));
 }
 
 // Until the user hits Start, sendFloat/sendBang silently no-op (node is
@@ -317,7 +331,7 @@ function onWorkletMessage(data) {
     case "ready":         readyResolve?.(); break;
     case "error":         readyReject?.(new Error(data.message));
                           log("error: " + data.message); break;
-    case "print":         log("pd: " + data.text); break;
+    case "print":         if (shouldShowPdPrint(data.text)) log("pd: " + data.text); break;
     case "patch-opened":  log(data.ok ? "patch opened" : "patch open FAILED"); break;
     case "recv-float": {
       const w = widgetsByRecv.get(data.receiver);
@@ -491,12 +505,24 @@ volume.addEventListener("input", () => {
   if (gain) gain.gain.value = v;
 });
 
-// Drag-and-drop a .pd file onto the textarea.
-patchEl.addEventListener("dragover", (e) => { e.preventDefault(); patchEl.classList.add("dropping"); });
-patchEl.addEventListener("dragleave", () => patchEl.classList.remove("dropping"));
-patchEl.addEventListener("drop", async (e) => {
+// Drag-and-drop a .pd file onto the source panel.
+function setPatchDropState(dropping) {
+  patchSourcePanel.classList.toggle("dropping", dropping);
+  patchEl.classList.toggle("dropping", dropping);
+}
+
+patchSourcePanel.addEventListener("dragover", (e) => {
   e.preventDefault();
-  patchEl.classList.remove("dropping");
+  patchSourcePanel.open = true;
+  setPatchDropState(true);
+});
+patchSourcePanel.addEventListener("dragleave", (e) => {
+  if (patchSourcePanel.contains(e.relatedTarget)) return;
+  setPatchDropState(false);
+});
+patchSourcePanel.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  setPatchDropState(false);
   const file = e.dataTransfer.files[0];
   if (!file) return;
   const text = await file.text();
